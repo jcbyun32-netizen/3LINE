@@ -41,7 +41,7 @@ h1{font-size:1.5rem;font-weight:800;margin:0 0 .25rem}
 .cn{font-size:1.3rem;font-weight:800}.cn b{color:var(--brand)}
 .bar{height:.5rem;background:var(--soft);border-radius:9999px;overflow:hidden;margin-top:.55rem}
 .bar i{display:block;height:100%;background:var(--brand)}
-.vp{height:15rem;position:relative;background:var(--soft);border-radius:.75rem;display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--mute);margin-bottom:.6rem}
+.vp{height:11rem;position:relative;background:var(--soft);border-radius:.75rem;display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--mute);margin-bottom:.6rem}
 .vp img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;display:block}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
 .cam{height:3.6rem;border-radius:.75rem;font-weight:800;font-size:1.05rem;color:#fff;background:var(--brand);box-shadow:0 4px 0 rgba(0,0,0,.2)}
@@ -49,7 +49,7 @@ h1{font-size:1.5rem;font-weight:800;margin:0 0 .25rem}
 .cam.alt{background:#334155}
 .sticky{position:sticky;bottom:calc(env(safe-area-inset-bottom,0px) + .4rem);display:grid;gap:.5rem;padding:.3rem 0 .25rem;background:var(--bg);z-index:5}
 .it{display:flex;gap:.7rem;align-items:center;padding:.6rem}
-.it img{width:6rem;height:4.5rem;object-fit:cover;border-radius:.5rem;flex:none;background:var(--soft)}
+.it .imgs{display:flex;flex-direction:column;gap:.25rem;flex:none}.it img{width:5rem;height:3.6rem;object-fit:cover;border-radius:.5rem;background:var(--soft)}
 .it .no{font-size:.8rem;color:var(--mute);font-weight:700}
 .it .sn{font-size:1.05rem;font-weight:800;word-break:break-all}
 .it .bt{display:flex;gap:.4rem;margin-top:.35rem}
@@ -74,10 +74,10 @@ h1{font-size:1.5rem;font-weight:800;margin:0 0 .25rem}
 <main id="app"></main>
 
 <script>
-const NAME_KEY='ls_oqc_inspector_v1',DB='ls_shipphoto_db',DBK='state',MAXN=50;
+const NAME_KEY='ls_oqc_inspector_v1',DB='ls_shipphoto_db',DBK='state',MAXN=20;
 const PFX=['MEC00905-AEA','MEC00907-AEA'];
-let S={screen:'work',inspector:'',pfx:PFX[0],rest:'',photo:null,items:[],edit:-1,saved:false};
-let warned=false,tmr=null;
+let S={screen:'work',inspector:'',pfx:PFX[0],rest:'',photos:[null,null],items:[],edit:-1,saved:false};
+let curSlot=0,warned=false,tmr=null;
 function safeGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
 function safeSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 /* ---- 임시저장: 사진 50장을 담기 위해 IndexedDB 사용 ---- */
@@ -86,7 +86,7 @@ async function idbGet(k){const d=await idb();return new Promise((res,rej)=>{cons
 async function idbSet(k,v){const d=await idb();return new Promise((res,rej)=>{const t=d.transaction('kv','readwrite');t.objectStore('kv').put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})}
 function save(){clearTimeout(tmr);tmr=setTimeout(()=>{idbSet(DBK,S).catch(()=>{if(!warned){warned=true;tell('임시저장이 되지 않습니다.\n이 페이지를 닫지 말고 계속 진행해 주세요.')}})},250)}
 async function load(){
-  try{const o=await idbGet(DBK);if(o&&Array.isArray(o.items))S=Object.assign(S,o)}catch(e){}
+  try{const o=await idbGet(DBK);if(o&&Array.isArray(o.items)){S=Object.assign(S,o);if(!Array.isArray(S.photos))S.photos=[S.photo||null,null];delete S.photo;S.items=S.items.map(it=>it.photos?it:{pfx:it.pfx,rest:it.rest,photos:[{data:it.data,w:it.w,h:it.h},null]})}}catch(e){}
   const n=safeGet(NAME_KEY);if(n&&!S.inspector)S.inspector=n;
   render();
 }
@@ -153,7 +153,7 @@ const xe=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&
 function b64ToBytes(d){const b=atob(d.split(',')[1]),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u}
 
 function render(){
-  $('resetBtn').style.display=(S.items.length||S.rest||S.photo)?'':'none';
+  $('resetBtn').style.display=(S.items.length||S.rest||S.photos[0]||S.photos[1])?'':'none';
   if(S.screen==='review')return renderReview();
   renderWork();
 }
@@ -175,10 +175,11 @@ function renderWork(){
     <div class="row"><span class="pre">${esc(S.pfx)}</span>
     <input id="rest" class="in" style="flex:1;min-width:0" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="숫자 입력" value="${esc(S.rest)}" oninput="S.rest=cleanRest(this.value);this.value=S.rest;save()"></div>
   </section>
-  <section class="card">
-    <label class="lb">사진 (1장)</label>
-    <div class="vp">${S.photo?`<img src="${S.photo.data}" alt="">`:'사진 없음'}</div>
-    <div class="two"><button class="cam" onclick="$('fCam').click()">📷 ${S.photo?'다시 촬영':'촬영'}</button><button class="cam alt" onclick="$('fPick').click()">🖼 앨범</button></div>
+  ${[0,1].map(k=>`<section class="card">
+    <label class="lb">사진 ${k+1} (총 2장)</label>
+    <div class="vp">${S.photos[k]?`<img src="${S.photos[k].data}" alt="">`:'사진 없음'}</div>
+    <div class="two"><button class="cam" onclick="pickPhoto(${k},'fCam')">📷 ${S.photos[k]?'다시 촬영':'촬영'}</button><button class="cam alt" onclick="pickPhoto(${k},'fPick')">🖼 앨범</button></div>
+  </section>`).join('')}
   </section>`}
   <div class="sticky">
     ${full?'':`<button class="big" onclick="nextItem()">${editing?'수정 저장':'저장하고 다음 (새 S/N)'}</button>`}
@@ -187,25 +188,26 @@ function renderWork(){
   <input id="fCam" type="file" accept="image/*" capture="environment" hidden onchange="addFile(this)">
   <input id="fPick" type="file" accept="image/*" hidden onchange="addFile(this)">`;
 }
+function pickPhoto(k,id){curSlot=k;$(id).click()}
 function setPfx(v){S.pfx=v;S.rest=cleanRest(S.rest);save();render()}
 async function addFile(inp){
   const f=inp.files&&inp.files[0];inp.value='';if(!f)return;
   const done=busy('사진 처리 중...');
-  try{S.photo=await fileToPhoto(f)}catch(e){done();await tell('사진을 불러오지 못했습니다.');return}
+  try{S.photos[curSlot]=await fileToPhoto(f)}catch(e){done();await tell('사진을 불러오지 못했습니다.');return}
   done();save();render();
 }
 function checkCur(){
   if(!S.inspector.trim()){tell('확인자 이름을 입력해 주세요.').then(()=>{const e=$('insp');e&&e.focus()});return false}
   if(!S.rest.trim()){tell('시리얼 뒤 숫자를 입력해 주세요.').then(()=>{const e=$('rest');e&&e.focus()});return false}
-  if(!S.photo){tell('사진을 촬영해 주세요.');return false}
+  if(!S.photos[0]||!S.photos[1]){tell((!S.photos[0]?'사진 1':'사진 2')+'을(를) 촬영해 주세요.\nS/N마다 사진 2장이 필요합니다.');return false}
   return true;
 }
 const dup=()=>S.items.some((it,i)=>i!==S.edit&&it.pfx+it.rest===serial());
 async function commit(){
   if(dup()&&!(await ask('이미 촬영한 S/N입니다.\n'+serial()+'\n\n그래도 저장할까요?','저장','수정')))return false;
-  const it={pfx:S.pfx,rest:S.rest.trim(),data:S.photo.data,w:S.photo.w,h:S.photo.h};
+  const it={pfx:S.pfx,rest:S.rest.trim(),photos:S.photos.map(p=>({data:p.data,w:p.w,h:p.h}))};
   if(S.edit>=0){S.items[S.edit]=it}else{S.items.push(it)}
-  S.rest='';S.photo=null;S.saved=false;
+  S.rest='';S.photos=[null,null];S.saved=false;
   return true;
 }
 async function nextItem(){
@@ -219,29 +221,29 @@ async function nextItem(){
   if(S.screen==='work'){const e=$('rest');e&&e.focus()}
 }
 async function finish(){
-  const has=S.rest.trim()||S.photo;
+  const has=S.rest.trim()||S.photos[0]||S.photos[1];
   if(has){
-    if(S.rest.trim()&&S.photo){
+    if(S.rest.trim()&&S.photos[0]&&S.photos[1]){
       if(!S.inspector.trim()){await tell('확인자 이름을 입력해 주세요.');return}
       if(!(await ask('현재 입력 중인 S/N '+serial()+'\n아직 저장되지 않았습니다.\n\n저장하고 완료할까요?','저장 후 완료','취소')))return;
       if(!(await commit()))return;
     }else{
       if(!(await ask('S/N 또는 사진이 비어 있는 입력 중인 항목이 있습니다.\n이 항목은 제외하고 완료할까요?','제외하고 완료','취소')))return;
-      S.rest='';S.photo=null;
+      S.rest='';S.photos=[null,null];
     }
   }
   if(!S.items.length){await tell('촬영한 사진이 없습니다.');return}
   if(!S.inspector.trim()){await tell('확인자 이름을 입력해 주세요.');return}
   S.screen='review';save();render();window.scrollTo(0,0);
 }
-function cancelEdit(){S.edit=-1;S.rest='';S.photo=null;S.screen='review';save();render();window.scrollTo(0,0)}
+function cancelEdit(){S.edit=-1;S.rest='';S.photos=[null,null];S.screen='review';save();render();window.scrollTo(0,0)}
 /* ---------- 목록 확인 / 엑셀 저장 ---------- */
 function renderReview(){
   const n=S.items.length;
   $('app').innerHTML=`<section class="card"><h1>촬영 목록</h1>
     <div class="meta">확인자 ${esc(S.inspector)}</div>
     <div class="${n?'ok':'err'}" style="margin-top:.3rem">총 ${n}대 / 최대 ${MAXN}대${S.saved?' · 저장됨':''}</div></section>
-  ${S.items.map((it,i)=>`<section class="card it"><img src="${it.data}" alt=""><div style="flex:1;min-width:0"><div class="no">${i+1}번째</div><div class="sn">${esc(it.pfx+it.rest)}</div>
+  ${S.items.map((it,i)=>`<section class="card it"><div class="imgs"><img src="${it.photos[0]?it.photos[0].data:''}" alt=""><img src="${it.photos[1]?it.photos[1].data:''}" alt=""></div><div style="flex:1;min-width:0"><div class="no">${i+1}번째</div><div class="sn">${esc(it.pfx+it.rest)}</div>
     <div class="bt"><button onclick="editItem(${i})">수정</button><button class="d" onclick="delItem(${i})">삭제</button></div></div></section>`).join('')}
   <div class="sticky">
     <button class="big" onclick="downloadXlsx()" ${n?'':'disabled'}>엑셀(.xlsx) 저장${S.saved?' (다시 저장)':''}</button>
@@ -251,8 +253,8 @@ function renderReview(){
 }
 function backWork(){S.screen='work';S.edit=-1;save();render();window.scrollTo(0,0)}
 function editItem(i){
-  if((S.rest.trim()||S.photo)&&S.edit<0){tell('입력 중이던 항목은 지워지고 선택한 항목을 수정합니다.')}
-  const it=S.items[i];S.edit=i;S.pfx=it.pfx;S.rest=it.rest;S.photo={data:it.data,w:it.w,h:it.h};S.screen='work';save();render();window.scrollTo(0,0);
+  if((S.rest.trim()||S.photos[0]||S.photos[1])&&S.edit<0){tell('입력 중이던 항목은 지워지고 선택한 항목을 수정합니다.')}
+  const it=S.items[i];S.edit=i;S.pfx=it.pfx;S.rest=it.rest;S.photos=it.photos.map(p=>p?{data:p.data,w:p.w,h:p.h}:null);S.screen='work';save();render();window.scrollTo(0,0);
 }
 async function delItem(i){
   if(!(await ask(S.items[i].pfx+S.items[i].rest+' 항목을 삭제할까요?','삭제')))return;
@@ -260,7 +262,7 @@ async function delItem(i){
 }
 async function resetAll(skip){
   if(skip!==true&&!(await ask('촬영한 모든 사진과 S/N을 지우고 처음으로 돌아갈까요?\n엑셀로 저장하지 않은 데이터는 사라집니다.','처음으로')))return;
-  S={screen:'work',inspector:S.inspector,pfx:S.pfx,rest:'',photo:null,items:[],edit:-1,saved:false};
+  S={screen:'work',inspector:S.inspector,pfx:S.pfx,rest:'',photos:[null,null],items:[],edit:-1,saved:false};
   save();render();window.scrollTo(0,0);
 }
 /* ---------- 엑셀: S/N + 사진만 ---------- */
@@ -282,21 +284,23 @@ function stylesXml(){
 }
 function sheetXml(){
   const R={},ht={1:36,2:22,3:22},add=(r,x)=>{R[r]=(R[r]||'')+x};
-  add(1,cell('A1',2,'SLE 칠북 공장 - 출하사진')+'<c r="B1" s="2"/>');
-  add(2,cell('A2',4,'확인자 : '+S.inspector.trim()+'      저장일시 : '+S.endTxt)+'<c r="B2" s="4"/>');
-  add(3,cell('A3',1,'S/N')+cell('B3',1,'사진'));
-  S.items.forEach((it,i)=>{const r=FIRST+i;ht[r]=ROWPT;add(r,cell('A'+r,3,it.pfx+it.rest)+`<c r="B${r}" s="3"/>`)});
+  add(1,cell('A1',2,'SLE 칠북 공장 - 출하사진')+'<c r="B1" s="2"/><c r="C1" s="2"/>');
+  add(2,cell('A2',4,'확인자 : '+S.inspector.trim()+'      저장일시 : '+S.endTxt)+'<c r="B2" s="4"/><c r="C2" s="4"/>');
+  add(3,cell('A3',1,'S/N')+cell('B3',1,'사진 1')+cell('C3',1,'사진 2'));
+  S.items.forEach((it,i)=>{const r=FIRST+i;ht[r]=ROWPT;add(r,cell('A'+r,3,it.pfx+it.rest)+`<c r="B${r}" s="3"/><c r="C${r}" s="3"/>`)});
   const rows=Object.keys(R).map(Number).sort((a,b)=>a-b).map(r=>`<row r="${r}" ht="${ht[r]}" customHeight="1">${R[r]}</row>`).join('');
-  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><cols><col min="1" max="1" width="30" customWidth="1"/><col min="2" max="2" width="44" customWidth="1"/></cols><sheetData>'+rows+'</sheetData><mergeCells count="2"><mergeCell ref="A1:B1"/><mergeCell ref="A2:B2"/></mergeCells><drawing r:id="rId1"/></worksheet>';
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><cols><col min="1" max="1" width="30" customWidth="1"/><col min="2" max="3" width="44" customWidth="1"/></cols><sheetData>'+rows+'</sheetData><mergeCells count="2"><mergeCell ref="A1:C1"/><mergeCell ref="A2:C2"/></mergeCells><drawing r:id="rId1"/></worksheet>';
 }
 function drawingXml(){
-  const E=9525;let a='';
-  S.items.forEach((it,i)=>{
-    const k=Math.min(BOX_W/it.w,BOX_H/it.h),w=Math.round(it.w*k),h=Math.round(it.h*k),ox=Math.round((COLB_PX-w)/2)*E,oy=Math.max(0,Math.round((ROWPX-h)/2))*E,r=FIRST-1+i,cx=w*E,cy=h*E;
-    a+=`<xdr:oneCellAnchor><xdr:from><xdr:col>1</xdr:col><xdr:colOff>${ox}</xdr:colOff><xdr:row>${r}</xdr:row><xdr:rowOff>${oy}</xdr:rowOff></xdr:from><xdr:ext cx="${cx}" cy="${cy}"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${i+2}" name="사진 ${i+1}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="rId${i+1}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>`;
-  });
+  const E=9525;let a='',n=0;
+  S.items.forEach((it,i)=>{it.photos.forEach((p,c)=>{
+    if(!p)return;n++;
+    const k=Math.min(BOX_W/p.w,BOX_H/p.h),w=Math.round(p.w*k),h=Math.round(p.h*k),ox=Math.round((COLB_PX-w)/2)*E,oy=Math.max(0,Math.round((ROWPX-h)/2))*E,r=FIRST-1+i,cx=w*E,cy=h*E;
+    a+=`<xdr:oneCellAnchor><xdr:from><xdr:col>${1+c}</xdr:col><xdr:colOff>${ox}</xdr:colOff><xdr:row>${r}</xdr:row><xdr:rowOff>${oy}</xdr:rowOff></xdr:from><xdr:ext cx="${cx}" cy="${cy}"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${n+1}" name="사진 ${i+1}-${c+1}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="rId${n}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>`;
+  })});
   return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+a+'</xdr:wsDr>';
 }
+const ALLP=()=>S.items.flatMap(it=>it.photos.filter(Boolean));
 function buildXlsxBlob(){
   const H='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n',R='http://schemas.openxmlformats.org/officeDocument/2006/relationships',PK='http://schemas.openxmlformats.org/package/2006/relationships',SM='application/vnd.openxmlformats-officedocument.spreadsheetml';
   const files=[
@@ -308,9 +312,9 @@ function buildXlsxBlob(){
     {name:'xl/worksheets/sheet1.xml',text:sheetXml()},
     {name:'xl/worksheets/_rels/sheet1.xml.rels',text:H+`<Relationships xmlns="${PK}"><Relationship Id="rId1" Type="${R}/drawing" Target="../drawings/drawing1.xml"/></Relationships>`},
     {name:'xl/drawings/drawing1.xml',text:drawingXml()},
-    {name:'xl/drawings/_rels/drawing1.xml.rels',text:H+`<Relationships xmlns="${PK}">`+S.items.map((p,i)=>`<Relationship Id="rId${i+1}" Type="${R}/image" Target="../media/image${i+1}.jpeg"/>`).join('')+'</Relationships>'}
+    {name:'xl/drawings/_rels/drawing1.xml.rels',text:H+`<Relationships xmlns="${PK}">`+ALLP().map((p,i)=>`<Relationship Id="rId${i+1}" Type="${R}/image" Target="../media/image${i+1}.jpeg"/>`).join('')+'</Relationships>'}
   ];
-  S.items.forEach((p,i)=>files.push({name:`xl/media/image${i+1}.jpeg`,bin:b64ToBytes(p.data)}));
+  ALLP().forEach((p,i)=>files.push({name:`xl/media/image${i+1}.jpeg`,bin:b64ToBytes(p.data)}));
   return makeZip(files);
 }
 function downloadXlsx(){
